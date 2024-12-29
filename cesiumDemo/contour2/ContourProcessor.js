@@ -199,18 +199,21 @@ class ContourRenderer {
             return;
         }
 
+        const rectWidth = 0.5;  // 经度范围
+        const rectHeight = 0.5; // 纬度范围
+        const centerLon = 116.391;
+        const centerLat = 39.901;
+
         contours.forEach(contour => {
             if (!contour || !Array.isArray(contour)) return;
 
             try {
-                // 转换坐标到地理坐标
+                // 转换坐标到地理坐标，确保在矩形范围内
                 const positions = contour.map(point => {
                     if (!point || point.length < 2) return null;
-                    return Cesium.Cartesian3.fromDegrees(
-                        116.391 + point[1] * 0.01,  // 经度
-                        39.901 + point[0] * 0.01,   // 纬度
-                        height
-                    );
+                    const lon = centerLon + (point[1] - 0.5) * rectWidth;
+                    const lat = centerLat + (point[0] - 0.5) * rectHeight;
+                    return Cesium.Cartesian3.fromDegrees(lon, lat, height);
                 }).filter(pos => pos !== null);
 
                 if (positions.length < 2) return;
