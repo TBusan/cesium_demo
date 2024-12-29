@@ -35,13 +35,14 @@ const bounds = {
 
 // 绘制示例等值线
 contourGenerator.drawContours({
-    width: width,
-    height: height,
-    centerLon: centerLon,
-    centerLat: centerLat,
-    spacing: spacing,
+    width: 50,
+    height: 50,
+    centerLon: 116.391,
+    centerLat: 39.901,
+    spacing: 0.01,
     levels: [0.2, 0.4, 0.6, 0.8],
-    contourHeight: 1000
+    contourHeight: 1000,
+    smoothness: 0.5
 });
 
 // 设置视图以显示整个等值线区域

@@ -41,6 +41,57 @@ class ContourGenerator {
         return entity;
     }
 
+    // 添加贝塞尔曲线平滑方法
+    smoothContourPoints(points, smoothness = 0.5) {
+        if (points.length < 3) return points;
+
+        const smoothPoints = [];
+        const len = points.length;
+
+        // 处理首尾相连的情况
+        const isClosed = this.pointsEqual(points[0], points[len - 1]);
+        
+        for (let i = 0; i < len - (isClosed ? 0 : 1); i++) {
+            const p0 = points[(i - 1 + len) % len];
+            const p1 = points[i];
+            const p2 = points[(i + 1) % len];
+            const p3 = points[(i + 2) % len];
+
+            // 为每段曲线生成多个点
+            for (let t = 0; t < 1; t += 0.1) {
+                const pt = this.getCatmullRomPoint(p0, p1, p2, p3, t, smoothness);
+                smoothPoints.push(pt);
+            }
+        }
+
+        return smoothPoints;
+    }
+
+    // Catmull-Rom 样条曲线插值
+    getCatmullRomPoint(p0, p1, p2, p3, t, smoothness) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        const v0 = (p2[0] - p0[0]) * smoothness;
+        const v1 = (p3[0] - p1[0]) * smoothness;
+        const v2 = (p2[1] - p0[1]) * smoothness;
+        const v3 = (p3[1] - p1[1]) * smoothness;
+
+        const x = (2 * p1[0] - 2 * p2[0] + v0 + v1) * t3 +
+                 (-3 * p1[0] + 3 * p2[0] - 2 * v0 - v1) * t2 +
+                 v0 * t + p1[0];
+        
+        const y = (2 * p1[1] - 2 * p2[1] + v2 + v3) * t3 +
+                 (-3 * p1[1] + 3 * p2[1] - 2 * v2 - v3) * t2 +
+                 v2 * t + p1[1];
+
+        return [x, y];
+    }
+
+    pointsEqual(p1, p2) {
+        return Math.abs(p1[0] - p2[0]) < 1e-10 && Math.abs(p1[1] - p2[1]) < 1e-10;
+    }
+
     // 绘制等值线
     drawContours(options = {}) {
         const {
@@ -50,7 +101,8 @@ class ContourGenerator {
             centerLat = 39.901,
             spacing = 0.01,
             levels = [0.2, 0.4, 0.6, 0.8],
-            contourHeight = 1000
+            contourHeight = 1000,
+            smoothness = 0.5  // 添加平滑参数
         } = options;
 
         // 生成网格数据
@@ -59,16 +111,18 @@ class ContourGenerator {
         // 为每个等值线级别生成轮廓
         levels.forEach((level, index) => {
             try {
-                // 使用我们自己的 MarchingSquares 实现
                 const contours = MarchingSquares.isoLines(data, level);
 
-                // 转换等值线坐标
                 contours.forEach(contour => {
-                    const contourPoints = contour.map(point => {
+                    // 转换等值线坐标
+                    let contourPoints = contour.map(point => {
                         const lon = centerLon - (width/2 * spacing) + (point[1] * spacing);
                         const lat = centerLat - (height/2 * spacing) + (point[0] * spacing);
                         return [lon, lat];
                     });
+
+                    // 应用平滑处理
+                    contourPoints = this.smoothContourPoints(contourPoints, smoothness);
 
                     // 创建等值线实体
                     const color = Cesium.Color.fromHsl((index * 0.25) % 1.0, 1.0, 0.5);
