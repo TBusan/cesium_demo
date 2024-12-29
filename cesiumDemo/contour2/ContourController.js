@@ -9,7 +9,6 @@ class ContourController {
     constructor(viewer) {
         this.viewer = viewer;
         this.renderer = new ContourRenderer(viewer);
-        this.labeler = new ContourLabeler(viewer);
     }
 
     drawContours(data, options = {}) {
@@ -25,7 +24,6 @@ class ContourController {
                 width = data[0].length,
                 height = data.length,
                 levels = Array.from({length: 10}, (_, i) => i / 9),
-                showLabels = true
             } = options;
 
             console.log('Processing data with dimensions:', width, height); // 调试日志
@@ -70,11 +68,6 @@ class ContourController {
                     // 6. 渲染
                     const color = this.getColorForLevel(level);
                     this.renderer.render(smoothedContours, color);
-
-                    // 7. 添加标签
-                    if (showLabels) {
-                        this.labeler.addLabels(smoothedContours, level);
-                    }
                 } catch (error) {
                     console.error(`Error processing level ${level}:`, error);
                 }
@@ -110,7 +103,6 @@ class ContourController {
     clear() {
         try {
             this.renderer.clear();
-            this.labeler.clear();
         } catch (error) {
             console.error('Error clearing contours:', error);
         }
