@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cesium with ArcGIS</title>
     <!-- 引入 Cesium -->
-    <script src="../Cesium107/Build/CesiumUnminified/Cesium.js"></script>
-    <link href="../Cesium107/Build/CesiumUnminified/Widgets/widgets.css" rel="stylesheet">
+    <script src="../Cesium120/Build/CesiumUnminified/Cesium.js"></script>
+    <link href="../Cesium120/Build/CesiumUnminified/Widgets/widgets.css" rel="stylesheet">
     <style>
         #cesiumContainer {
             width: 100%;
@@ -22,44 +22,41 @@
 <body>
     <div id="cesiumContainer"></div>
     <script>
-        // 初始化 viewer，先不设置底图和地形
+        // 设置 token
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0NTEyMTQ4ZS00NTdmLTRhYTYtYTY5NS1mYWIwNDY2OGNhNDYiLCJpZCI6MTMxODY0LCJpYXQiOjE2ODA1MDY0Nzd9.9TwdaxPqnGYRop2hp8lAKNgLlty3YFd_tAcijUPmB4A';
+
+        // 创建地图服务提供者
+        const imageryProvider = new Cesium.ArcGisMapServerImageryProvider({
+            url: 'https://map.geoq.cn/arcgis/rest/services/ChinaOnlineCommunity/MapServer'
+        });
+
+        // 初始化 viewer
         const viewer = new Cesium.Viewer('cesiumContainer', {
+            // imageryProvider: imageryProvider,
             baseLayerPicker: false,
-            imageryProvider: false  // 先不设置底图
+            timeline: false,
+            animation: false,
+            navigationHelpButton: false,
+            fullscreenButton: false,
+            geocoder: false,
+            homeButton: false,
+            sceneModePicker: false,
+            scene3DOnly: true
         });
 
-        // 添加 ArcGIS 底图
-        const arcgisImageProvider = new Cesium.ArcGisMapServerImageryProvider({
-            url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
-            enablePickFeatures: false
-        });
-        viewer.imageryLayers.addImageryProvider(arcgisImageProvider);
-
-        // 设置 ArcGIS 地形
-        const terrainProvider = new Cesium.ArcGISTiledElevationTerrainProvider({
-            url: 'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer',
-            credit: 'ArcGIS World Elevation'
-        });
-        viewer.terrainProvider = terrainProvider;
-
-        // 设置初始视角
+        // 设置默认视图
         viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(116.391, 39.901, 15000.0)
+            destination: Cesium.Cartesian3.fromDegrees(116.391, 39.901, 1500000.0)
         });
 
-        // 启用地形深度测试
-        viewer.scene.globe.enableLighting = true;
-        viewer.scene.globe.depthTestAgainstTerrain = true;
+        // 移除版权信息
+        viewer._cesiumWidget._creditContainer.style.display = "none";
 
-        // 等待地形和影像加载完成
-        Promise.all([
-            terrainProvider.readyPromise,
-            arcgisImageProvider.readyPromise
-        ]).then(function() {
-            console.log('地形和影像加载完成');
-        }).catch(function(error) {
-            console.error('加载出错:', error);
-        });
+        // 错误处理
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error('Error:', message);
+            return false;
+        };
     </script>
 </body>
 </html> 
