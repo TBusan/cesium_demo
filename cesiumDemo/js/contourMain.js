@@ -40,18 +40,18 @@ contourGenerator.drawContours({
     centerLon: 116.391,
     centerLat: 39.901,
     spacing: 0.01,
-    levels: [0.2, 0.4, 0.6, 0.8],
+    levels: [0.8, 0.6, 0.4, 0.2],
     contourHeight: 1000,
-    smoothness: 0.5
+    smoothness: 0.3
 });
 
-// 设置视图以显示整个等值线区域
+// 调整相机视角
 viewer.camera.flyTo({
     destination: Cesium.Rectangle.fromDegrees(bounds.west, bounds.south, bounds.east, bounds.north),
     duration: 1,
     complete: function() {
-        // 调整到合适的观察高度
-        viewer.camera.zoomOut(20000.0);
+        viewer.camera.zoomOut(15000.0);
+        viewer.camera.lookDown(0.3);
     }
 });
 

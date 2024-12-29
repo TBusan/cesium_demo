@@ -92,7 +92,28 @@ class ContourGenerator {
         return Math.abs(p1[0] - p2[0]) < 1e-10 && Math.abs(p1[1] - p2[1]) < 1e-10;
     }
 
-    // 绘制等值线
+    // 添加创建填充区域的方法
+    createContourFill(contourPoints, height, color, nextColor) {
+        const positions = contourPoints.map(point => 
+            Cesium.Cartesian3.fromDegrees(point[0], point[1], height)
+        );
+
+        const entity = this.viewer.entities.add({
+            polygon: {
+                hierarchy: positions,
+                material: new Cesium.ColorMaterialProperty(color.withAlpha(0.7)),
+                height: height,
+                extrudedHeight: height + 10,
+                closeTop: true,
+                closeBottom: true
+            }
+        });
+
+        this.entities.push(entity);
+        return entity;
+    }
+
+    // 修改绘制等值线方法
     drawContours(options = {}) {
         const {
             width = 50,
@@ -102,31 +123,62 @@ class ContourGenerator {
             spacing = 0.01,
             levels = [0.2, 0.4, 0.6, 0.8],
             contourHeight = 1000,
-            smoothness = 0.5  // 添加平滑参数
+            smoothness = 0.5
         } = options;
 
-        // 生成网格数据
         const data = this.generateSampleData(width, height, centerLon, centerLat, spacing);
+        const sortedLevels = [...levels].sort((a, b) => b - a); // 从高到低排序
 
-        // 为每个等值线级别生成轮廓
-        levels.forEach((level, index) => {
+        // 创建一个包围整个区域的边界多边形
+        const boundaryPoints = [
+            [centerLon - (width/2 * spacing), centerLat - (height/2 * spacing)],
+            [centerLon + (width/2 * spacing), centerLat - (height/2 * spacing)],
+            [centerLon + (width/2 * spacing), centerLat + (height/2 * spacing)],
+            [centerLon - (width/2 * spacing), centerLat + (height/2 * spacing)],
+            [centerLon - (width/2 * spacing), centerLat - (height/2 * spacing)]
+        ];
+
+        // 为每个等值线级别生成轮廓和填充
+        sortedLevels.forEach((level, index) => {
             try {
-                const contours = MarchingSquares.isoLines(data, level);
-
-                contours.forEach(contour => {
-                    // 转换等值线坐标
-                    let contourPoints = contour.map(point => {
-                        const lon = centerLon - (width/2 * spacing) + (point[1] * spacing);
-                        const lat = centerLat - (height/2 * spacing) + (point[0] * spacing);
-                        return [lon, lat];
+                let contours = [];
+                
+                // 对于最高级别，使用边界多边形
+                if (index === 0) {
+                    contours = [[boundaryPoints]];
+                } else {
+                    // 使用 MarchingSquares 生成等值线
+                    contours = MarchingSquares.isoLines(data, level).map(contour => {
+                        // 转换等值线坐标
+                        return contour.map(point => {
+                            const lon = centerLon - (width/2 * spacing) + (point[1] * spacing);
+                            const lat = centerLat - (height/2 * spacing) + (point[0] * spacing);
+                            return [lon, lat];
+                        });
                     });
+                }
+
+                // 处理每个轮廓
+                contours.forEach(contour => {
+                    // 确保轮廓是闭合的
+                    if (!this.pointsEqual(contour[0], contour[contour.length - 1])) {
+                        contour.push([...contour[0]]);
+                    }
 
                     // 应用平滑处理
-                    contourPoints = this.smoothContourPoints(contourPoints, smoothness);
+                    let smoothedPoints = this.smoothContourPoints(contour, smoothness);
 
-                    // 创建等值线实体
+                    // 创建颜色
                     const color = Cesium.Color.fromHsl((index * 0.25) % 1.0, 1.0, 0.5);
-                    this.createContourEntity(contourPoints, contourHeight, color);
+                    const nextColor = index < sortedLevels.length - 1 
+                        ? Cesium.Color.fromHsl(((index + 1) * 0.25) % 1.0, 1.0, 0.5)
+                        : color;
+
+                    // 创建填充区域
+                    this.createContourFill(smoothedPoints, contourHeight, color, nextColor);
+
+                    // 创建等值线
+                    this.createContourEntity(smoothedPoints, contourHeight + 20, color);
                 });
             } catch (error) {
                 console.error('Error generating contour for level ' + level, error);
@@ -183,4 +235,26 @@ class ContourGenerator {
             }
         });
     }
-} 
+}
+
+// 添加自定义渐变材质
+Cesium.Material.GradientType = 'Gradient';
+Cesium.Material._materialCache.addMaterial(Cesium.Material.GradientType, {
+    fabric: {
+        type: Cesium.Material.GradientType,
+        uniforms: {
+            color: new Cesium.Color(1.0, 0.0, 0.0, 1.0),
+            nextColor: new Cesium.Color(0.0, 1.0, 0.0, 1.0),
+            repeat: 1
+        },
+        source: `
+            czm_material czm_getMaterial(czm_materialInput materialInput) {
+                czm_material material = czm_getDefaultMaterial(materialInput);
+                vec2 st = materialInput.st;
+                material.diffuse = mix(color.rgb, nextColor.rgb, st.t);
+                material.alpha = mix(color.a, nextColor.a, st.t);
+                return material;
+            }
+        `
+    }
+}); 
