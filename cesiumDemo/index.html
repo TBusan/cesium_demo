@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cesium with ArcGIS</title>
+    <!-- 引入 Cesium -->
+    <script src="../Cesium120/Build/CesiumUnminified/Cesium.js"></script>
+    <link href="../Cesium120/Build/CesiumUnminified/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <script>
+        // 初始化 viewer
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            terrainProvider: new Cesium.ArcGISTiledElevationTerrainProvider({
+                url: 'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+            }),
+            baseLayerPicker: false, // 禁用默认的图层选择器
+            imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
+                url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+            })
+        });
+
+        // 设置初始视角
+        viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(116.391, 39.901, 15000.0)
+        });
+
+        // 启用地形深度测试
+        viewer.scene.globe.enableLighting = true;
+        viewer.scene.globe.depthTestAgainstTerrain = true;
+    </script>
+</body>
+</html> 
