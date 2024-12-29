@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cesium Contour Lines</title>
+    <script src="../../Cesium120/Build/CesiumUnminified/Cesium.js"></script>
+    <link href="../../Cesium120/Build/CesiumUnminified/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <script>
+        // 设置 Cesium ion token
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0NTEyMTQ4ZS00NTdmLTRhYTYtYTY5NS1mYWIwNDY2OGNhNDYiLCJpZCI6MTMxODY0LCJpYXQiOjE2ODA1MDY0Nzd9.9TwdaxPqnGYRop2hp8lAKNgLlty3YFd_tAcijUPmB4A';
+    </script>
+    <!-- 按顺序加载脚本 -->
+    <script src="ContourBase.js"></script>
+    <script>
+        // 确保 ContourBase 加载完成
+        if (typeof ContourUtils === 'undefined') {
+            console.error('ContourUtils not loaded');
+            throw new Error('ContourUtils not loaded');
+        }
+    </script>
+    <script src="ContourProcessor.js"></script>
+    <script>
+        // 确保 ContourProcessor 加载完成
+        if (typeof DataPreprocessor === 'undefined' || 
+            typeof MarchingSquares === 'undefined' || 
+            typeof ContourConnector === 'undefined') {
+            console.error('ContourProcessor classes not loaded');
+            throw new Error('ContourProcessor classes not loaded');
+        }
+    </script>
+    <script src="ContourController.js"></script>
+    <script>
+        // 确保 ContourController 加载完成
+        if (typeof ContourController === 'undefined') {
+            console.error('ContourController not loaded');
+            throw new Error('ContourController not loaded');
+        }
+
+        // 初始化应用
+        function initApp() {
+            // 初始化 viewer
+            const viewer = new Cesium.Viewer('cesiumContainer', {
+                baseLayerPicker: false,
+                timeline: false,
+                animation: false,
+                navigationHelpButton: false,
+                fullscreenButton: false,
+                geocoder: false,
+                homeButton: false,
+                sceneModePicker: false,
+                scene3DOnly: true
+            });
+
+            // 移除版权信息
+            viewer._cesiumWidget._creditContainer.style.display = "none";
+
+            // 生成测试数据
+            const width = 100, height = 100;
+            const data = Array(height).fill().map((_, i) => 
+                Array(width).fill().map((_, j) => {
+                    const x = j / width - 0.5;
+                    const y = i / height - 0.5;
+                    return Math.exp(-(x*x + y*y) / 0.1);
+                })
+            );
+
+            // 创建控制器并绘制等值线
+            const controller = new ContourController(viewer);
+            controller.drawContours(data, {
+                width: width,
+                height: height,
+                levels: Array.from({length: 15}, (_, i) => i / 14),
+                showLabels: true
+            });
+
+            // 设置视角
+            viewer.camera.flyTo({
+                destination: Cesium.Rectangle.fromDegrees(
+                    116.391 - 0.3, 39.901 - 0.2,
+                    116.391 + 0.3, 39.901 + 0.2
+                ),
+                duration: 1
+            });
+        }
+
+        // 等待所有资源加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
+    </script>
+</body>
+</html>

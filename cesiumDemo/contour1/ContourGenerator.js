@@ -2,23 +2,30 @@ class ContourGenerator {
     constructor(viewer) {
         this.viewer = viewer;
         this.entities = [];
+        this.labelEntities = [];  // 单独存储标签实体
     }
 
     // 生成示例数据
     generateSampleData(width, height, centerLon, centerLat, spacing) {
         const data = [];
-        const sigma = spacing * 10; // 调整高斯函数的扩散范围
-
+        // 创建从左到右的基础渐变
         for (let i = 0; i < height; i++) {
             const row = [];
             for (let j = 0; j < width; j++) {
-                const lon = centerLon - (width/2 * spacing) + (j * spacing);
-                const lat = centerLat - (height/2 * spacing) + (i * spacing);
-                // 修改高斯函数计算方式
-                const value = Math.exp(-(
-                    Math.pow(lon - centerLon, 2) / (2 * sigma * sigma) +
-                    Math.pow(lat - centerLat, 2) / (2 * sigma * sigma)
-                ));
+                // 基础渐变：从左到右
+                let value = j / width;
+                
+                // 添加一些局部变化来创造不规则形状
+                // 使用正弦函数创建波浪形状
+                const waveEffect = Math.sin(i / height * Math.PI * 4) * 0.15;
+                value += waveEffect;
+
+                // 添加一些随机扰动来创造不规则边缘
+                const noise = (Math.random() - 0.5) * 0.05;
+                value += noise;
+
+                // 确保值在 0-1 范围内
+                value = Math.max(0, Math.min(1, value));
                 row.push(value);
             }
             data.push(row);
@@ -107,9 +114,9 @@ class ContourGenerator {
         const entity = this.viewer.entities.add({
             polygon: {
                 hierarchy: positions,
-                material: new Cesium.ColorMaterialProperty(color.withAlpha(0.3)),
+                material: new Cesium.ColorMaterialProperty(color),
                 height: height,
-                extrudedHeight: height + 5,
+                extrudedHeight: height + 1, // 减小高度差，使其更平坦
                 closeTop: true,
                 closeBottom: true,
                 zIndex: 0
@@ -186,10 +193,12 @@ class ContourGenerator {
                     }
                 });
 
-                this.entities.push(entity);
+                this.labelEntities.push(entity);  // 添加到标签实体数组
+                this.entities.push(entity);       // 同时也添加到所有实体数组
                 currentLength = 0; // 重置累积长度
             }
         }
+        return entity;
     }
 
     // 添加计算两点距离的辅助方法
@@ -202,20 +211,40 @@ class ContourGenerator {
     // 修改绘制等值线方法
     drawContours(options = {}) {
         const {
-            width = 50,
-            height = 50,
+            width = 200,
+            height = 200,
             centerLon = 116.391,
             centerLat = 39.901,
-            spacing = 0.01,
-            levels = [0.2, 0.4, 0.6, 0.8],
+            spacing = 0.005,
+            levels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
             contourHeight = 1000,
-            smoothness = 0.5,
-            showLabels = true  // 添加显示标签的选项
+            smoothness = 0.8,
+            showLabels = false,
+            // 添加矩形范围参数
+            rectWidth = 0.5,  // 经度范围（度）
+            rectHeight = 0.3  // 纬度范围（度）
         } = options;
 
         try {
             const data = this.generateSampleData(width, height, centerLon, centerLat, spacing);
             
+            // 计算矩形边界
+            const bounds = {
+                west: centerLon - rectWidth / 2,
+                east: centerLon + rectWidth / 2,
+                south: centerLat - rectHeight / 2,
+                north: centerLat + rectHeight / 2
+            };
+
+            // 创建矩形边界点
+            const boundaryPoints = [
+                [bounds.west, bounds.south],
+                [bounds.east, bounds.south],
+                [bounds.east, bounds.north],
+                [bounds.west, bounds.north],
+                [bounds.west, bounds.south]  // 闭合矩形
+            ];
+
             if (!data || data.length === 0 || data[0].length === 0) {
                 console.error('Invalid data generated');
                 return;
@@ -234,17 +263,18 @@ class ContourGenerator {
                 minVal + level * (maxVal - minVal)
             ).sort((a, b) => b - a);
 
-            // 创建更平滑的边界多边形
-            const numPoints = 72; // 每90度24个点
-            const boundaryPoints = [];
-            const radius = Math.max(width, height) * spacing / 2;
-            
-            for (let i = 0; i <= numPoints; i++) {
-                const angle = (i / numPoints) * Math.PI * 2;
-                const lon = centerLon + radius * Math.cos(angle);
-                const lat = centerLat + radius * Math.sin(angle);
-                boundaryPoints.push([lon, lat]);
-            }
+            // 修改颜色方案，从蓝色过渡到红色
+            const colors = [
+                Cesium.Color.fromCssColorString('#000080'), // 深蓝
+                Cesium.Color.fromCssColorString('#0000FF'), // 蓝色
+                Cesium.Color.fromCssColorString('#4169E1'), // 皇家蓝
+                Cesium.Color.fromCssColorString('#87CEEB'), // 天蓝色
+                Cesium.Color.fromCssColorString('#B0C4DE'), // 淡钢蓝
+                Cesium.Color.fromCssColorString('#D3D3D3'), // 淡灰色
+                Cesium.Color.fromCssColorString('#FFB6C1'), // 浅粉红
+                Cesium.Color.fromCssColorString('#FF69B4'), // 热粉红
+                Cesium.Color.fromCssColorString('#FF0000')  // 红色
+            ];
 
             // 处理每个等值线级别
             normalizedLevels.forEach((level, index) => {
@@ -252,20 +282,16 @@ class ContourGenerator {
                     let contours = [];
                     
                     if (index === 0) {
-                        // 对于最外层，使用圆形边界
+                        // 对于最外层，使用矩形边界
                         contours = [boundaryPoints];
                     } else {
                         contours = MarchingSquares.isoLines(data, level);
                         
-                        if (!contours || contours.length === 0) {
-                            console.warn(`No contours generated for level ${level}`);
-                            return;
-                        }
-
+                        // 转换等值线坐标到地理坐标
                         contours = contours.map(contour => {
                             return contour.map(point => {
-                                const lon = centerLon - (width/2 * spacing) + (point[1] * spacing);
-                                const lat = centerLat - (height/2 * spacing) + (point[0] * spacing);
+                                const lon = bounds.west + (point[1] / width) * (bounds.east - bounds.west);
+                                const lat = bounds.south + (point[0] / height) * (bounds.north - bounds.south);
                                 return [lon, lat];
                             });
                         }).filter(contour => contour && contour.length > 2);
@@ -287,13 +313,18 @@ class ContourGenerator {
                                 index === 0 ? smoothness * 1.5 : smoothness
                             );
 
-                            const color = Cesium.Color.fromHsl((index * 0.25) % 1.0, 1.0, 0.5);
-                            const nextColor = index < normalizedLevels.length - 1 
-                                ? Cesium.Color.fromHsl(((index + 1) * 0.25) % 1.0, 1.0, 0.5)
-                                : color;
+                            // 使用预定义的颜色
+                            const color = colors[index];
+                            const nextColor = colors[Math.min(index + 1, colors.length - 1)];
 
-                            this.createContourFill(smoothedPoints, contourHeight, color, nextColor);
-                            this.createContourEntity(smoothedPoints, contourHeight + 10, color);
+                            // 创建填充区域时使用更低的透明度
+                            this.createContourFill(smoothedPoints, contourHeight, 
+                                color.withAlpha(0.8), 
+                                nextColor.withAlpha(0.8));
+
+                            // 创建等值线时使用更细的线条和更高的不透明度
+                            this.createContourEntity(smoothedPoints, contourHeight + 1, 
+                                color.withAlpha(1.0));
 
                             // 修改标签添加部分
                             if (showLabels) {
@@ -309,6 +340,21 @@ class ContourGenerator {
                     console.error(`Error processing level ${level}:`, levelError);
                 }
             });
+
+            // 添加矩形边框
+            this.viewer.entities.add({
+                rectangle: {
+                    coordinates: Cesium.Rectangle.fromDegrees(
+                        bounds.west, bounds.south, bounds.east, bounds.north
+                    ),
+                    material: Cesium.Color.WHITE.withAlpha(0.1),
+                    outline: true,
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 2,
+                    height: contourHeight
+                }
+            });
+
         } catch (error) {
             console.error('Error in drawContours:', error);
         }
@@ -320,6 +366,7 @@ class ContourGenerator {
             this.viewer.entities.remove(entity);
         });
         this.entities = [];
+        this.labelEntities = [];  // 清除标签实体数组
     }
 
     // 使用真实数据生成等值线
@@ -361,6 +408,13 @@ class ContourGenerator {
             } catch (error) {
                 console.error('Error generating contour for level ' + level, error);
             }
+        });
+    }
+
+    // 添加标签显示控制方法
+    toggleLabels(visible) {
+        this.labelEntities.forEach(entity => {
+            entity.show = visible;
         });
     }
 }

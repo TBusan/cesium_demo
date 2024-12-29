@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cesium Contour Lines</title>
+    <script src="../Cesium120/Build/CesiumUnminified/Cesium.js"></script>
+    <link href="../Cesium120/Build/CesiumUnminified/Widgets/widgets.css" rel="stylesheet">
+    <link href="./css/contour.css" rel="stylesheet">
+    <style>
+        /* 添加按钮样式 */
+        #controlPanel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 999;
+            background: rgba(42, 42, 42, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .control-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .control-button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="controlPanel">
+        <button id="toggleLabels" class="control-button">Toggle Labels</button>
+    </div>
+    <script src="./contour1/MarchingSquaresImpl.js"></script>
+    <script src="./contour1/ContourGenerator.js"></script>
+    <script src="./contour1/contourMain.js"></script>
+</body>
+</html> 
