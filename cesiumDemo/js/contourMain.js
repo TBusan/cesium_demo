@@ -40,9 +40,9 @@ contourGenerator.drawContours({
     centerLon: 116.391,
     centerLat: 39.901,
     spacing: 0.01,
-    levels: [0.8, 0.6, 0.4, 0.2],
+    levels: [0.1, 0.3, 0.5, 0.7],
     contourHeight: 1000,
-    smoothness: 0.3
+    smoothness: 0.4
 });
 
 // 调整相机视角

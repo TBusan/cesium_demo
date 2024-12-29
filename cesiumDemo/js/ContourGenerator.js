@@ -7,13 +7,18 @@ class ContourGenerator {
     // 生成示例数据
     generateSampleData(width, height, centerLon, centerLat, spacing) {
         const data = [];
+        const sigma = spacing * 10; // 调整高斯函数的扩散范围
+
         for (let i = 0; i < height; i++) {
             const row = [];
             for (let j = 0; j < width; j++) {
                 const lon = centerLon - (width/2 * spacing) + (j * spacing);
                 const lat = centerLat - (height/2 * spacing) + (i * spacing);
-                // 使用高斯函数生成示例数据
-                const value = Math.exp(-((lon - centerLon)**2 + (lat - centerLat)**2) / (2 * spacing));
+                // 修改高斯函数计算方式
+                const value = Math.exp(-(
+                    Math.pow(lon - centerLon, 2) / (2 * sigma * sigma) +
+                    Math.pow(lat - centerLat, 2) / (2 * sigma * sigma)
+                ));
                 row.push(value);
             }
             data.push(row);
@@ -31,9 +36,10 @@ class ContourGenerator {
         const entity = this.viewer.entities.add({
             polyline: {
                 positions: positions,
-                width: 2,
-                material: color,
-                clampToGround: true
+                width: 3,
+                material: new Cesium.ColorMaterialProperty(color.withAlpha(1.0)),
+                clampToGround: false,
+                zIndex: 1
             }
         });
 
@@ -101,11 +107,12 @@ class ContourGenerator {
         const entity = this.viewer.entities.add({
             polygon: {
                 hierarchy: positions,
-                material: new Cesium.ColorMaterialProperty(color.withAlpha(0.7)),
+                material: new Cesium.ColorMaterialProperty(color.withAlpha(0.3)),
                 height: height,
-                extrudedHeight: height + 10,
+                extrudedHeight: height + 5,
                 closeTop: true,
-                closeBottom: true
+                closeBottom: true,
+                zIndex: 0
             }
         });
 
@@ -126,64 +133,98 @@ class ContourGenerator {
             smoothness = 0.5
         } = options;
 
-        const data = this.generateSampleData(width, height, centerLon, centerLat, spacing);
-        const sortedLevels = [...levels].sort((a, b) => b - a); // 从高到低排序
+        try {
+            const data = this.generateSampleData(width, height, centerLon, centerLat, spacing);
+            
+            if (!data || data.length === 0 || data[0].length === 0) {
+                console.error('Invalid data generated');
+                return;
+            }
 
-        // 创建一个包围整个区域的边界多边形
-        const boundaryPoints = [
-            [centerLon - (width/2 * spacing), centerLat - (height/2 * spacing)],
-            [centerLon + (width/2 * spacing), centerLat - (height/2 * spacing)],
-            [centerLon + (width/2 * spacing), centerLat + (height/2 * spacing)],
-            [centerLon - (width/2 * spacing), centerLat + (height/2 * spacing)],
-            [centerLon - (width/2 * spacing), centerLat - (height/2 * spacing)]
-        ];
+            // 计算数据范围
+            let minVal = Infinity, maxVal = -Infinity;
+            data.forEach(row => {
+                row.forEach(val => {
+                    minVal = Math.min(minVal, val);
+                    maxVal = Math.max(maxVal, val);
+                });
+            });
 
-        // 为每个等值线级别生成轮廓和填充
-        sortedLevels.forEach((level, index) => {
-            try {
-                let contours = [];
-                
-                // 对于最高级别，使用边界多边形
-                if (index === 0) {
-                    contours = [[boundaryPoints]];
-                } else {
-                    // 使用 MarchingSquares 生成等值线
-                    contours = MarchingSquares.isoLines(data, level).map(contour => {
-                        // 转换等值线坐标
-                        return contour.map(point => {
-                            const lon = centerLon - (width/2 * spacing) + (point[1] * spacing);
-                            const lat = centerLat - (height/2 * spacing) + (point[0] * spacing);
-                            return [lon, lat];
-                        });
-                    });
-                }
+            const normalizedLevels = levels.map(level => 
+                minVal + level * (maxVal - minVal)
+            ).sort((a, b) => b - a);
 
-                // 处理每个轮廓
-                contours.forEach(contour => {
-                    // 确保轮廓是闭合的
-                    if (!this.pointsEqual(contour[0], contour[contour.length - 1])) {
-                        contour.push([...contour[0]]);
+            // 创建更平滑的边界多边形
+            const numPoints = 72; // 每90度24个点
+            const boundaryPoints = [];
+            const radius = Math.max(width, height) * spacing / 2;
+            
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                const lon = centerLon + radius * Math.cos(angle);
+                const lat = centerLat + radius * Math.sin(angle);
+                boundaryPoints.push([lon, lat]);
+            }
+
+            // 处理每个等值线级别
+            normalizedLevels.forEach((level, index) => {
+                try {
+                    let contours = [];
+                    
+                    if (index === 0) {
+                        // 对于最外层，使用圆形边界
+                        contours = [boundaryPoints];
+                    } else {
+                        contours = MarchingSquares.isoLines(data, level);
+                        
+                        if (!contours || contours.length === 0) {
+                            console.warn(`No contours generated for level ${level}`);
+                            return;
+                        }
+
+                        contours = contours.map(contour => {
+                            return contour.map(point => {
+                                const lon = centerLon - (width/2 * spacing) + (point[1] * spacing);
+                                const lat = centerLat - (height/2 * spacing) + (point[0] * spacing);
+                                return [lon, lat];
+                            });
+                        }).filter(contour => contour && contour.length > 2);
                     }
 
-                    // 应用平滑处理
-                    let smoothedPoints = this.smoothContourPoints(contour, smoothness);
+                    // 处理每个轮廓
+                    contours.forEach(contour => {
+                        if (!contour || contour.length < 3) return;
 
-                    // 创建颜色
-                    const color = Cesium.Color.fromHsl((index * 0.25) % 1.0, 1.0, 0.5);
-                    const nextColor = index < sortedLevels.length - 1 
-                        ? Cesium.Color.fromHsl(((index + 1) * 0.25) % 1.0, 1.0, 0.5)
-                        : color;
+                        try {
+                            // 确保轮廓闭合
+                            if (!this.pointsEqual(contour[0], contour[contour.length - 1])) {
+                                contour.push([...contour[0]]);
+                            }
 
-                    // 创建填充区域
-                    this.createContourFill(smoothedPoints, contourHeight, color, nextColor);
+                            // 对最外层应用更强的平滑
+                            let smoothedPoints = this.smoothContourPoints(
+                                contour, 
+                                index === 0 ? smoothness * 1.5 : smoothness
+                            );
 
-                    // 创建等值线
-                    this.createContourEntity(smoothedPoints, contourHeight + 20, color);
-                });
-            } catch (error) {
-                console.error('Error generating contour for level ' + level, error);
-            }
-        });
+                            const color = Cesium.Color.fromHsl((index * 0.25) % 1.0, 1.0, 0.5);
+                            const nextColor = index < normalizedLevels.length - 1 
+                                ? Cesium.Color.fromHsl(((index + 1) * 0.25) % 1.0, 1.0, 0.5)
+                                : color;
+
+                            this.createContourFill(smoothedPoints, contourHeight, color, nextColor);
+                            this.createContourEntity(smoothedPoints, contourHeight + 10, color);
+                        } catch (contourError) {
+                            console.error('Error processing individual contour:', contourError);
+                        }
+                    });
+                } catch (levelError) {
+                    console.error(`Error processing level ${level}:`, levelError);
+                }
+            });
+        } catch (error) {
+            console.error('Error in drawContours:', error);
+        }
     }
 
     // 清除所有等值线
