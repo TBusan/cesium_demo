@@ -42,7 +42,8 @@ contourGenerator.drawContours({
     spacing: 0.01,
     levels: [0.1, 0.3, 0.5, 0.7],
     contourHeight: 1000,
-    smoothness: 0.4
+    smoothness: 0.4,
+    showLabels: true
 });
 
 // 调整相机视角
@@ -50,10 +51,15 @@ viewer.camera.flyTo({
     destination: Cesium.Rectangle.fromDegrees(bounds.west, bounds.south, bounds.east, bounds.north),
     duration: 1,
     complete: function() {
-        viewer.camera.zoomOut(15000.0);
-        viewer.camera.lookDown(0.3);
+        viewer.camera.zoomOut(25000.0);  // 增加观察距离
+        viewer.camera.lookDown(0.7);     // 调整视角
     }
 });
+
+// 设置场景参数
+viewer.scene.globe.enableLighting = false;
+viewer.scene.fog.enabled = false;
+viewer.scene.globe.depthTestAgainstTerrain = false;
 
 // 添加边界框以便观察
 viewer.entities.add({

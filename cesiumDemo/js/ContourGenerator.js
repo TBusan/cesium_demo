@@ -120,6 +120,85 @@ class ContourGenerator {
         return entity;
     }
 
+    // 修改创建标签的方法，添加多点标注
+    createContourLabels(contourPoints, height, value, color) {
+        if (!contourPoints || contourPoints.length < 3) return;
+
+        // 计算等值线的总长度
+        let totalLength = 0;
+        for (let i = 0; i < contourPoints.length - 1; i++) {
+            const p1 = contourPoints[i];
+            const p2 = contourPoints[i + 1];
+            totalLength += this.distance(p1, p2);
+        }
+
+        // 确定标签数量（根据等值线长度）
+        const labelDistance = totalLength / 4; // 每隔1/4长度放置一个标签
+        let currentLength = 0;
+
+        // 沿等值线放置多个标签
+        for (let i = 0; i < contourPoints.length - 1; i++) {
+            const p1 = contourPoints[i];
+            const p2 = contourPoints[i + 1];
+            const segmentLength = this.distance(p1, p2);
+            
+            currentLength += segmentLength;
+            
+            // 当累积长度达到标签间距时放置标签
+            if (currentLength >= labelDistance) {
+                // 计算标签位置（线段上的插值点）
+                const ratio = 1 - (currentLength - labelDistance) / segmentLength;
+                const labelPos = [
+                    p1[0] + (p2[0] - p1[0]) * ratio,
+                    p1[1] + (p2[1] - p1[1]) * ratio
+                ];
+
+                // 创建标签实体
+                const entity = this.viewer.entities.add({
+                    position: new Cesium.CallbackProperty(() => {
+                        return Cesium.Cartesian3.fromDegrees(
+                            labelPos[0],
+                            labelPos[1],
+                            height + 100
+                        );
+                    }, false),
+                    point: {
+                        pixelSize: 0,
+                        heightReference: Cesium.HeightReference.NONE
+                    },
+                    label: {
+                        text: value.toFixed(2),
+                        font: '16px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: color,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                        pixelOffset: new Cesium.Cartesian2(0, 0),
+                        showBackground: true,
+                        backgroundColor: Cesium.Color.BLACK.withAlpha(0.7),
+                        backgroundPadding: new Cesium.Cartesian2(10, 7),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                        heightReference: Cesium.HeightReference.NONE,
+                        scale: 1.0,
+                        translucencyByDistance: new Cesium.NearFarScalar(1.5e2, 1.0, 8.0e6, 0.0)
+                    }
+                });
+
+                this.entities.push(entity);
+                currentLength = 0; // 重置累积长度
+            }
+        }
+    }
+
+    // 添加计算两点距离的辅助方法
+    distance(p1, p2) {
+        const dx = p1[0] - p2[0];
+        const dy = p1[1] - p2[1];
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
     // 修改绘制等值线方法
     drawContours(options = {}) {
         const {
@@ -130,7 +209,8 @@ class ContourGenerator {
             spacing = 0.01,
             levels = [0.2, 0.4, 0.6, 0.8],
             contourHeight = 1000,
-            smoothness = 0.5
+            smoothness = 0.5,
+            showLabels = true  // 添加显示标签的选项
         } = options;
 
         try {
@@ -214,6 +294,13 @@ class ContourGenerator {
 
                             this.createContourFill(smoothedPoints, contourHeight, color, nextColor);
                             this.createContourEntity(smoothedPoints, contourHeight + 10, color);
+
+                            // 修改标签添加部分
+                            if (showLabels) {
+                                const actualValue = minVal + levels[levels.length - 1 - index] * (maxVal - minVal);
+                                // 为每个轮廓添加多个标签
+                                this.createContourLabels(smoothedPoints, contourHeight + 50, actualValue, color);
+                            }
                         } catch (contourError) {
                             console.error('Error processing individual contour:', contourError);
                         }
