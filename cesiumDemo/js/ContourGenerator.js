@@ -58,21 +58,25 @@ class ContourGenerator {
 
         // 为每个等值线级别生成轮廓
         levels.forEach((level, index) => {
-            // 使用 MarchingSquares 生成等值线
-            const contours = MarchingSquares.isoContours(data, level);
+            try {
+                // 使用我们自己的 MarchingSquares 实现
+                const contours = MarchingSquares.isoLines(data, level);
 
-            // 转换等值线坐标
-            contours.forEach(contour => {
-                const contourPoints = contour.map(point => {
-                    const lon = centerLon - (width/2 * spacing) + (point[0] * spacing);
-                    const lat = centerLat - (height/2 * spacing) + (point[1] * spacing);
-                    return [lon, lat];
+                // 转换等值线坐标
+                contours.forEach(contour => {
+                    const contourPoints = contour.map(point => {
+                        const lon = centerLon - (width/2 * spacing) + (point[1] * spacing);
+                        const lat = centerLat - (height/2 * spacing) + (point[0] * spacing);
+                        return [lon, lat];
+                    });
+
+                    // 创建等值线实体
+                    const color = Cesium.Color.fromHsl((index * 0.25) % 1.0, 1.0, 0.5);
+                    this.createContourEntity(contourPoints, contourHeight, color);
                 });
-
-                // 创建等值线实体
-                const color = Cesium.Color.fromHsl((index * 0.25) % 1.0, 1.0, 0.5);
-                this.createContourEntity(contourPoints, contourHeight, color);
-            });
+            } catch (error) {
+                console.error('Error generating contour for level ' + level, error);
+            }
         });
     }
 
@@ -103,18 +107,26 @@ class ContourGenerator {
         const latSpacing = (bounds.north - bounds.south) / (height - 1);
 
         levels.forEach((level, index) => {
-            const contours = MarchingSquares.isoContours(data, level);
+            try {
+                const contours = window.marchingsquares.isoBands(
+                    data,
+                    level - 0.0001,
+                    level + 0.0001
+                );
 
-            contours.forEach(contour => {
-                const contourPoints = contour.map(point => {
-                    const lon = bounds.west + point[0] * lonSpacing;
-                    const lat = bounds.south + point[1] * latSpacing;
-                    return [lon, lat];
+                contours.forEach(contour => {
+                    const contourPoints = contour.map(point => {
+                        const lon = bounds.west + point[0] * lonSpacing;
+                        const lat = bounds.south + point[1] * latSpacing;
+                        return [lon, lat];
+                    });
+
+                    const color = Cesium.Color.fromHsl((index * 0.25) % 1.0, 1.0, 0.5);
+                    this.createContourEntity(contourPoints, contourHeight, color);
                 });
-
-                const color = Cesium.Color.fromHsl((index * 0.25) % 1.0, 1.0, 0.5);
-                this.createContourEntity(contourPoints, contourHeight, color);
-            });
+            } catch (error) {
+                console.error('Error generating contour for level ' + level, error);
+            }
         });
     }
 } 
