@@ -81,25 +81,25 @@ vec3 jellyEarthquake(vec3 pos, float time) {
     // 计算高度因子（0到1），底部为0，顶部为1
     float heightFactor = (pos.z + 1.0) * 0.5;
     
-    // 基础频率
-    float baseFreq = time * 10.0;
+    // 降低基础频率
+    float baseFreq = time * 3.0;  // 从10.0降到3.0，使震动变慢
     
     // 减小水平方向的震动幅度
-    float xOffset = sin(baseFreq) * cos(baseFreq * 0.7) * heightFactor * 0.05;
-    float yOffset = cos(baseFreq) * sin(baseFreq * 0.7) * heightFactor * 0.05;
+    float xOffset = sin(baseFreq) * cos(baseFreq * 0.5) * heightFactor * 0.05;  // 从0.7降到0.5
+    float yOffset = cos(baseFreq) * sin(baseFreq * 0.5) * heightFactor * 0.05;
     
     // 减小随机性的影响
     vec2 randCoord = pos.xy + time;
     float rand = random(randCoord) * 0.02 * heightFactor;
     
-    // 使用正弦函数保持持续震动，但减小幅度
-    float continuousShake = (sin(time * 0.5) * 0.3 + 0.7);
+    // 使用正弦函数保持持续震动，降低震动频率
+    float continuousShake = (sin(time * 0.2) * 0.3 + 0.7);  // 从0.5降到0.2
     
     return pos + vec3(xOffset, yOffset, rand) * moveMaxHeight * heightFactor * continuousShake;
 }
 
 void main() {
-    float time = czm_frameNumber * 0.02;
+    float time = czm_frameNumber * 0.01;  // 从0.02降到0.01，使整体动画变慢
     
     // 应用布丁震动效果
     vec3 jellyPos = jellyEarthquake(position, time);
