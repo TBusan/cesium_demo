@@ -71,43 +71,47 @@ out vec3 v_normalEC;
 out vec2 v_st;
 uniform float moveMaxHeight;
 
-mat4 rotationAroundZ(float angle)
-{
-    float s = sin(angle);
-    float c = cos(angle);
-
-    return mat4(c,  -s,   0.0, 0.0,
-                s,   c,   0.0, 0.0,
-                0.0, 0.0, 1.0, 0.0,
-                0.0, 0.0, 0.0, 1.0);
+// 添加随机函数
+float random(vec2 st) {
+    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
 }
 
-mat4 translationMatrix (float z) {
-  return mat4(
-    1.0, 0.0, 0.0, 0.0,
-    0.0, 1.0, 0.0, 0.0,
-    0.0, 0.0, 1.0, 0.,
-    0.0, 0.0, z, 1.0
-  );
+// 添加布丁震动函数
+vec3 jellyEarthquake(vec3 pos, float time) {
+    // 计算高度因子（0到1），底部为0，顶部为1
+    float heightFactor = (pos.z + 1.0) * 0.5;
+    
+    // 基础频率
+    float baseFreq = time * 10.0;
+    
+    // 减小水平方向的震动幅度
+    float xOffset = sin(baseFreq) * cos(baseFreq * 0.7) * heightFactor * 0.05;
+    float yOffset = cos(baseFreq) * sin(baseFreq * 0.7) * heightFactor * 0.05;
+    
+    // 减小随机性的影响
+    vec2 randCoord = pos.xy + time;
+    float rand = random(randCoord) * 0.02 * heightFactor;
+    
+    // 使用正弦函数保持持续震动，但减小幅度
+    float continuousShake = (sin(time * 0.5) * 0.3 + 0.7);
+    
+    return pos + vec3(xOffset, yOffset, rand) * moveMaxHeight * heightFactor * continuousShake;
 }
 
 void main() {
-  // 提取z轴缩放因子
-  float scaleZ = length(czm_model[2].xyz);
-
-  float uTime = czm_frameNumber * 0.04;
-  float offsetZ = sin(uTime) * moveMaxHeight / 2.;
-
-  mat4 translationMatrix = translationMatrix(1.0/scaleZ * offsetZ);
-  mat4 rotationMatrix = rotationAroundZ(uTime);
-  vec4 vertex = translationMatrix * rotationMatrix * vec4(position, 1.0);
-
-  vec4 mvVertex = czm_modelView * vertex;
-  gl_Position = czm_projection * mvVertex;
-
-  v_positionEC = mvVertex.xyz;
-  v_normalEC = czm_normal * normal;
-  v_st = st;
+    float time = czm_frameNumber * 0.02;
+    
+    // 应用布丁震动效果
+    vec3 jellyPos = jellyEarthquake(position, time);
+    
+    // 转换到眼睛空间
+    vec4 mvPosition = czm_modelView * vec4(jellyPos, 1.0);
+    gl_Position = czm_projection * mvPosition;
+    
+    // 传递给片元着色器的变量
+    v_positionEC = mvPosition.xyz;
+    v_normalEC = czm_normal * normal;
+    v_st = st;
 }
 `;
 
@@ -264,28 +268,24 @@ void main() {
 
         // 创建四面体并添加到场景
         function addTetrahedron() {
-            // 设置四面体的位置（北京附近）
             const position = Cesium.Cartesian3.fromDegrees(116.391, 39.901, 1000);
             
-            // 创建四面体实例
             const tetrahedron = new TetrahedronPrimitive({
                 position: position,
-                width: 500,      // 设置宽度（米）
-                height: 500,     // 设置高度（米）
-                depth: 500,      // 设置深度（米）
+                width: 300,
+                height: 300,
+                depth: 400,
             });
             
-            // 设置动画最大高度
-            tetrahedron.moveMaxHeight = 1000;  // 设置上下移动的最大高度（米）
-
-            // 将四面体添加到场景中
+            tetrahedron.moveMaxHeight = 10;  // 从30减小到10，减小整体震动幅度
+            
             viewer.scene.primitives.add(tetrahedron);
-
-            // 设置相机视角
+            
+            // 调整相机视角以更好地观察震动效果
             viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(116.391, 39.901, 3000),
+                destination: Cesium.Cartesian3.fromDegrees(116.391, 39.901, 2000),
                 orientation: {
-                    heading: Cesium.Math.toRadians(0),
+                    heading: Cesium.Math.toRadians(45),
                     pitch: Cesium.Math.toRadians(-30),
                     roll: 0.0
                 },
