@@ -54,33 +54,42 @@
         // 修改数据生成部分
         function generateContourData(width, height) {
             const data = [];
-            // 调整参数以创建所需的等值线模式
-            const frequency = 3.0;  // 波动频率
-            const skew = 0.7;      // 倾斜程度
+            // 调整参数
+            const angle = -45;  // 倾斜角度（度）
+            const angleRad = angle * Math.PI / 180;
+            const cos = Math.cos(angleRad);
+            const sin = Math.sin(angleRad);
             
+            // 调整波动参数，减小范围
+            const waveParams = {
+                frequency: 8.0,     // 增加频率，使波动更密集
+                amplitude: 0.2,     // 波动幅度
+                phase: Math.PI / 4  // 相位偏移
+            };
+
             for (let i = 0; i < height; i++) {
                 const row = [];
                 for (let j = 0; j < width; j++) {
-                    // 归一化坐标到 [-1, 1] 范围
-                    const x = (j / width) * 2 - 1;
-                    const y = (i / height) * 2 - 1;
+                    // 归一化坐标到更小的范围 [-0.1, 0.1]
+                    const x = (j / width * 0.2 - 0.1);
+                    const y = (i / height * 0.2 - 0.1);
                     
-                    // 创建基础渐变
-                    let value = (x + y) * skew;
+                    // 应用旋转变换
+                    const rotX = x * cos - y * sin;
+                    const rotY = x * sin + y * cos;
                     
-                    // 添加非线性变化
-                    value += Math.sin(x * frequency) * 0.2;
-                    value += Math.cos(y * frequency) * 0.1;
+                    // 创建基础线性渐变
+                    let value = (rotX + 0.1) / 0.2;
                     
-                    // 添加局部特征
-                    if (x < -0.5 && y < -0.5) {
-                        value += Math.exp(-((x + 0.7) * (x + 0.7) + (y + 0.7) * (y + 0.7)) * 4) * 0.5;
-                    }
+                    // 添加平滑的波动效果
+                    const wave = waveParams.amplitude * 
+                        Math.sin(waveParams.frequency * Math.PI * rotX + waveParams.phase) * 
+                        Math.exp(-Math.abs(rotY) * 10);  // 增加衰减速度
                     
-                    // 归一化到 [0, 1] 范围
-                    value = (value + 2) / 4;
+                    value += wave;
+                    
+                    // 确保值在 [0, 1] 范围内
                     value = Math.max(0, Math.min(1, value));
-                    
                     row.push(value);
                 }
                 data.push(row);
@@ -107,7 +116,7 @@
             viewer._cesiumWidget._creditContainer.style.display = "none";
 
             // 生成数据
-            const width = 200, height = 200;  // 增加分辨率
+            const width = 400, height = 400;  // 增加分辨率
             const data = generateContourData(width, height);
 
             // 创建控制器并绘制等值线
@@ -119,13 +128,25 @@
                 showLabels: false
             });
 
+            // 在 initApp 函数中修改视角设置
+            const size = 0.001; // 使用相同的尺寸参数
+            const centerLon = 116.391;
+            const centerLat = 39.901;
+
             // 调整视角以显示矩形区域
             viewer.camera.flyTo({
                 destination: Cesium.Rectangle.fromDegrees(
-                    116.391 - 0.25, 39.901 - 0.25,
-                    116.391 + 0.25, 39.901 + 0.25
+                    centerLon - size,
+                    centerLat - size,
+                    centerLon + size,
+                    centerLat + size
                 ),
-                duration: 1
+                duration: 1,
+                complete: function() {
+                    // 调整视角高度和倾斜角度
+                    viewer.camera.zoomOut(100.0);  // 减小观察距离
+                    viewer.camera.lookDown(0.5);
+                }
             });
         }
 

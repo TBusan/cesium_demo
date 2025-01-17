@@ -199,25 +199,37 @@ class ContourRenderer {
             return;
         }
 
-        const rectWidth = 0.5;  // 经度范围
-        const rectHeight = 0.5; // 纬度范围
+        // 定义一个小范围的矩形区域
         const centerLon = 116.391;
         const centerLat = 39.901;
+        const size = 0.001; // 约等于100米的经纬度范围
+
+        // 计算边界
+        const bounds = {
+            west: centerLon - size,
+            east: centerLon + size,
+            south: centerLat - size,
+            north: centerLat + size
+        };
 
         contours.forEach(contour => {
             if (!contour || !Array.isArray(contour)) return;
 
             try {
-                // 转换坐标到地理坐标，确保在矩形范围内
+                // 修改坐标转换逻辑
                 const positions = contour.map(point => {
                     if (!point || point.length < 2) return null;
-                    const lon = centerLon + (point[1] - 0.5) * rectWidth;
-                    const lat = centerLat + (point[0] - 0.5) * rectHeight;
+
+                    // 将 [0,1] 范围的数据映射到一个很小的经纬度范围
+                    const lon = centerLon + (point[1] - 0.5) * size * 2;
+                    const lat = centerLat + (point[0] - 0.5) * size * 2;
+
                     return Cesium.Cartesian3.fromDegrees(lon, lat, height);
                 }).filter(pos => pos !== null);
 
                 if (positions.length < 2) return;
 
+                // 创建等值线实体
                 const entity = this.viewer.entities.add({
                     polyline: {
                         positions: positions,
@@ -234,6 +246,21 @@ class ContourRenderer {
                 console.error('Error rendering contour:', error);
             }
         });
+
+        // 添加边界框显示
+        const boundaryEntity = this.viewer.entities.add({
+            rectangle: {
+                coordinates: Cesium.Rectangle.fromDegrees(
+                    bounds.west, bounds.south,
+                    bounds.east, bounds.north
+                ),
+                fill: false,
+                outline: true,
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 2
+            }
+        });
+        this.entities.push(boundaryEntity);
     }
 
     clear() {
